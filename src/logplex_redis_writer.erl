@@ -32,7 +32,7 @@ start_link(BufferPid, RedisOpts) ->
 
 init(Parent, BufferPid, RedisOpts) ->
     io:format("init ~p~n", [?MODULE]),
-    pg2:join(BufferPid, self()),
+    logplex_queue:register(BufferPid, self()),
     Socket = open_socket(RedisOpts),
     case Socket of
         {error, Err} ->
