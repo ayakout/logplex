@@ -51,9 +51,7 @@ loop(BufferPid, Socket, RedisOpts) ->
             case gen_tcp:send(Socket, Logs) of
                 ok ->
                     logplex_stats:incr(logplex_stats, message_processed, NumItems),
-                    logplex_realtime:incr(message_processed, NumItems),
-                    receive _X -> ok after 0 -> ok end,
-                    inet:setopts(Socket, [{active, once}]);
+                    logplex_realtime:incr(message_processed, NumItems);
                 {error, closed} ->
                     error_logger:error_msg("~p redis connection closed", [?MODULE]),
                     timer:sleep(500),
@@ -71,7 +69,7 @@ open_socket(Opts) ->
     Pass = proplists:get_value(pass, Opts),
     case redis:connect(Ip, Port, Pass) of
         {ok, Socket} ->
-            inet:setopts(Socket, [{active, once}, {nodelay, true}]),
+            inet:setopts(Socket, [{active, false}, {nodelay, true}]),
             Socket;
         Err ->
             Err
