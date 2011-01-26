@@ -45,17 +45,24 @@ init(Parent, BufferPid, RedisOpts) ->
     loop(BufferPid, Socket, RedisOpts).
 
 loop(BufferPid, Socket, RedisOpts) ->
+    %% verify that writer still has an open
+    %% connection to redis server
+    case gen_tcp:recv(Socket, 0, 0) of
+        {error, timeout} -> ok;
+        {error, closed} -> exit(normal)
+    end,
     case logplex_queue:out(BufferPid, 100) of
         timeout -> ok;
         {NumItems, Logs} ->
+            inet:setopts(Socket, [{active, once}]),
             case gen_tcp:send(Socket, Logs) of
                 ok ->
                     logplex_stats:incr(logplex_stats, message_processed, NumItems),
-                    logplex_realtime:incr(message_processed, NumItems);
+                    receive _X -> ok after 0 -> ok end;
                 {error, closed} ->
                     error_logger:error_msg("~p redis connection closed", [?MODULE]),
                     timer:sleep(500),
-                    exit({error, closed});
+                    exit(normal);
                 Err ->
                     exit(Err)
             end
