@@ -45,20 +45,23 @@ init(Parent, BufferPid, RedisOpts) ->
     loop(BufferPid, Socket, RedisOpts).
 
 loop(BufferPid, Socket, RedisOpts) ->
+    %% TODO Find (and remove) where redis_writer's socket
+    %% is getting reset to {active, once}
+    inet:setopts(Socket, [{active, false}]),
     %% verify that writer still has an open
     %% connection to redis server
-    case gen_tcp:recv(Socket, 0, 0) of
+    case gen_tcp:recv(Socket, 1, 0) of
+        {ok, _} -> ok;
         {error, timeout} -> ok;
         {error, closed} -> exit(normal)
     end,
     case logplex_queue:out(BufferPid, 100) of
         timeout -> ok;
         {NumItems, Logs} ->
-            inet:setopts(Socket, [{active, once}]),
             case gen_tcp:send(Socket, Logs) of
                 ok ->
                     logplex_stats:incr(logplex_stats, message_processed, NumItems),
-                    receive _X -> ok after 0 -> ok end;
+                    logplex_realtime:incr(message_processed, NumItems);
                 {error, closed} ->
                     error_logger:error_msg("~p redis connection closed", [?MODULE]),
                     timer:sleep(500),
